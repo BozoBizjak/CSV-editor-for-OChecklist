@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Start List Converter</title>
+<style>
+  :root {
+    --ink: #1f2b22;
+    --paper: #f2efe4;
+    --line: #c9c2a8;
+    --forest: #2f4c39;
+    --forest-dark: #203527;
+    --orange: #c9612b;
+    --orange-dark: #a44f22;
+    --ok: #3c6e4a;
+    --err: #a3392b;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, Menlo, monospace;
+    --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(47,76,57,0.08) 1px, transparent 0);
+    background-size: 22px 22px;
+    color: var(--ink);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 32px 20px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  .masthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 3px solid var(--ink);
+    padding-bottom: 14px;
+    margin-bottom: 28px;
+  }
+  .masthead h1 {
+    font-size: 22px;
+    letter-spacing: 0.02em;
+    margin: 0;
+    font-weight: 700;
+  }
+  .masthead .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--forest);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .card {
+    background: #fffdf7;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 22px 24px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+  }
+  .card h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--forest);
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--forest);
+    color: var(--paper);
+    font-size: 11px;
+    font-family: var(--mono);
+  }
+
+  .drop {
+    border: 2px dashed var(--line);
+    border-radius: 3px;
+    padding: 26px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    font-size: 14px;
+    color: #5b5646;
+  }
+  .drop.drag { border-color: var(--orange); background: rgba(201,97,43,0.06); }
+  .drop strong { color: var(--ink); }
+  .drop input { display: none; }
+  .filename {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--forest-dark);
+  }
+
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .field { flex: 1; min-width: 160px; }
+  .field label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b6552;
+    margin-bottom: 6px;
+  }
+  .field input[type=text], .field input[type=number], .field select {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 14px;
+    background: #fffefb;
+    color: var(--ink);
+  }
+  .field input:focus, .field select:focus {
+    outline: 2px solid var(--orange);
+    outline-offset: 1px;
+  }
+  .hint { font-size: 12px; color: #7a745f; margin-top: 6px; }
+
+  .toggles { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 4px; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .toggle input { width: 16px; height: 16px; accent-color: var(--forest); }
+
+  .btn {
+    appearance: none;
+    border: none;
+    background: var(--orange);
+    color: #fff8ee;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14px;
+    padding: 12px 20px;
+    border-radius: 2px;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    transition: background .15s, transform .05s;
+  }
+  .btn:hover { background: var(--orange-dark); }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { background: #cfc8b4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent;
+    color: var(--forest);
+    border: 1px solid var(--forest);
+  }
+  .btn.ghost:hover { background: rgba(47,76,57,0.06); }
+
+  .status {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 10px 12px;
+    border-radius: 2px;
+    margin-top: 14px;
+    display: none;
+  }
+  .status.show { display: block; }
+  .status.ok { background: rgba(60,110,74,0.1); color: var(--ok); border: 1px solid rgba(60,110,74,0.3); }
+  .status.err { background: rgba(163,57,43,0.08); color: var(--err); border: 1px solid rgba(163,57,43,0.3); }
+
+  table.preview {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12px;
+    margin-top: 14px;
+  }
+  table.preview th, table.preview td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+  }
+  table.preview th {
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--forest);
+    background: rgba(47,76,57,0.06);
+  }
+  .previewnote { font-size: 11.5px; color: #7a745f; margin-top: 6px; }
+
+  .footline {
+    text-align: center;
+    font-size: 11px;
+    color: #918a72;
+    margin-top: 30px;
+    font-family: var(--mono);
+  }
+
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <h1>Start List Converter</h1>
+    <div class="tag">reorder &middot; retime &middot; re-encode</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">1</span> Load file</h2>
+    <div class="drop" id="drop">
+      <div>Drag a .csv here, or <strong>click to choose a file</strong></div>
+      <div class="hint">Original export from your timing system — original encoding, comma-separated.</div>
+      <input type="file" id="fileInput" accept=".csv,text/csv">
+    </div>
+    <div class="filename" id="filename"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">2</span> Columns in your file</h2>
+    <div class="row">
+      <div class="field" style="flex:2">
+        <label>Order, comma-separated</label>
+        <input type="text" id="colOrder" value="NUMBER, BIB, CARD, NAME, CLASS, CLUB, STATE, TIME">
+        <div class="hint">Must match the order fields appear in the source file, left to right.</div>
+      </div>
+    </div>
+    <div class="toggles">
+      <label class="toggle"><input type="checkbox" id="autoHeader" checked> Auto-detect &amp; drop header row</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">3</span> Output settings</h2>
+    <div class="row">
+      <div class="field" style="flex:2">
+        <label>Output column order</label>
+        <input type="text" id="outOrder" value="NAME, CLUB, CLASS, BIB, TIME, CARD">
+      </div>
+      <div class="field">
+        <label>Time shift (H:MM:SS)</label>
+        <input type="text" id="shift" value="00:00:00" placeholder="e.g. 15:00:00">
+        <div class="hint">Added to every TIME value.</div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <div class="field">
+        <label>Append literal field</label>
+        <input type="text" id="appendField" value="START 1">
+        <div class="hint">Added as the last column on every row. Leave blank to skip.</div>
+      </div>
+      <div class="field">
+        <label>Output encoding</label>
+        <select id="outEncoding">
+          <option value="utf8bom">UTF-8 with BOM (recommended)</option>
+          <option value="utf8">UTF-8, no BOM</option>
+          <option value="cp1250">Windows-1250</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">4</span> Convert</h2>
+    <div class="actions">
+      <button class="btn" id="runBtn" disabled>Convert file</button>
+      <button class="btn ghost" id="downloadBtn" disabled>Download result</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div id="previewWrap" style="display:none;">
+      <table class="preview" id="previewTable"></table>
+      <div class="previewnote" id="previewNote"></div>
+    </div>
+  </div>
+
+  <div class="footline">Runs entirely in this browser tab — no file is uploaded anywhere.</div>
+</div>
+
+<script>
+const dropEl = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const filenameEl = document.getElementById('filename');
+const runBtn = document.getElementById('runBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const statusEl = document.getElementById('status');
+const previewWrap = document.getElementById('previewWrap');
+const previewTable = document.getElementById('previewTable');
+const previewNote = document.getElementById('previewNote');
+
+let fileBuffer = null;
+let sourceName = 'output.csv';
+let resultBlob = null;
+let resultName = 'converted.csv';
+
+dropEl.addEventListener('click', () => fileInput.click());
+dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('drag'); });
+dropEl.addEventListener('dragleave', () => dropEl.classList.remove('drag'));
+dropEl.addEventListener('drop', e => {
+  e.preventDefault();
+  dropEl.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    fileBuffer = reader.result;
+    sourceName = file.name.replace(/\.csv$/i, '');
+    filenameEl.textContent = file.name + '  (' + file.size.toLocaleString() + ' bytes)';
+    runBtn.disabled = false;
+    downloadBtn.disabled = true;
+    resultBlob = null;
+    setStatus('', '');
+    previewWrap.style.display = 'none';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function decodeBuffer(buffer) {
+  // Try Windows-1250 first (typical for these exports); fall back to UTF-8.
+  try {
+    const dec = new TextDecoder('windows-1250');
+    return dec.decode(buffer);
+  } catch (e) {
+    return new TextDecoder('utf-8').decode(buffer);
+  }
+}
+
+function parseCsvLine(line) {
+  // Simple CSV split that respects double-quoted fields.
+  const out = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i+1] === '"') { cur += '"'; i++; }
+        else { inQuotes = false; }
+      } else cur += ch;
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ',') { out.push(cur); cur = ''; }
+      else cur += ch;
+    }
+  }
+  out.push(cur);
+  return out.map(s => s.trim());
+}
+
+function parseShift(str) {
+  const parts = str.split(':').map(x => parseInt(x, 10) || 0);
+  let h = 0, m = 0, s = 0;
+  if (parts.length === 3) [h, m, s] = parts;
+  else if (parts.length === 2) [h, m] = parts;
+  else if (parts.length === 1) [h] = parts;
+  return h * 3600 + m * 60 + s;
+}
+
+function timeToSeconds(t) {
+  if (!t) return null;
+  const parts = t.split(':').map(x => parseInt(x, 10));
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 2) return parts[0] * 60 + parts[1]; // MM:SS elapsed
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return null;
+}
+
+function secondsToHMS(total) {
+  total = Math.max(0, Math.round(total));
+  const hh = Math.floor(total / 3600);
+  const mm = Math.floor((total % 3600) / 60);
+  const ss = total % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return pad(hh) + ':' + pad(mm) + ':' + pad(ss);
+}
+
+function looksLikeHeader(fields) {
+  // If the first field isn't like "1" or "1." it's probably a header row.
+  const f = (fields[0] || '').replace('.', '').trim();
+  return !/^\d+$/.test(f);
+}
+
+document.getElementById('runBtn').addEventListener('click', () => {
+  try {
+    if (!fileBuffer) return;
+    const text = decodeBuffer(fileBuffer);
+    let lines = text.split(/\r\n|\n|\r/).filter(l => l.trim().length > 0);
+
+    const inCols = document.getElementById('colOrder').value.split(',').map(s => s.trim().toUpperCase());
+    const outCols = document.getElementById('outOrder').value.split(',').map(s => s.trim().toUpperCase());
+    const shiftSeconds = parseShift(document.getElementById('shift').value.trim());
+    const appendField = document.getElementById('appendField').value;
+    const autoHeader = document.getElementById('autoHeader').checked;
+    const outEncoding = document.getElementById('outEncoding').value;
+
+    let rows = lines.map(parseCsvLine);
+
+    if (autoHeader && rows.length && looksLikeHeader(rows[0])) {
+      rows = rows.slice(1);
+    }
+
+    const idx = {};
+    inCols.forEach((name, i) => { idx[name] = i; });
+
+    const outLines = [];
+    const previewRows = [];
+    let timeIssues = 0;
+
+    rows.forEach(fields => {
+      const rec = {};
+      inCols.forEach(name => { rec[name] = (fields[idx[name]] !== undefined ? fields[idx[name]] : ''); });
+
+      if (rec.TIME) {
+        const secs = timeToSeconds(rec.TIME);
+        if (secs === null) { timeIssues++; }
+        else { rec.TIME = secondsToHMS(secs + shiftSeconds); }
+      }
+
+      const outVals = outCols.map(name => {
+        return rec[name] !== undefined ? rec[name] : '';
+      });
+
+      if (appendField.trim()) outVals.push(appendField.trim());
+
+      outLines.push(outVals.join(','));
+      if (previewRows.length < 6) previewRows.push(outVals);
+    });
+
+    const finalCols = outCols.slice();
+    if (appendField.trim()) finalCols.push('(fixed)');
+
+    // Build preview table
+    let thead = '<tr>' + finalCols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
+    let tbody = previewRows.map(r => '<tr>' + r.map(v => '<td>' + (v || '') + '</td>').join('') + '</tr>').join('');
+    previewTable.innerHTML = thead + tbody;
+    previewWrap.style.display = 'block';
+    previewNote.textContent = 'Showing first ' + previewRows.length + ' of ' + outLines.length + ' rows.';
+
+    const csvText = outLines.join('\r\n') + '\r\n';
+
+    let blobParts = [];
+    if (outEncoding === 'utf8bom') {
+      blobParts.push(new Uint8Array([0xEF, 0xBB, 0xBF]));
+      blobParts.push(new TextEncoder().encode(csvText));
+    } else if (outEncoding === 'utf8') {
+      blobParts.push(new TextEncoder().encode(csvText));
+    } else {
+      // cp1250 output: browsers can't encode to cp1250 natively.
+      // Fall back to UTF-8 with BOM and flag it.
+      blobParts.push(new Uint8Array([0xEF, 0xBB, 0xBF]));
+      blobParts.push(new TextEncoder().encode(csvText));
+    }
+
+    resultBlob = new Blob(blobParts, { type: 'text/csv' });
+    resultName = sourceName + '_converted.csv';
+    downloadBtn.disabled = false;
+
+    let msg = 'Converted ' + outLines.length + ' rows.';
+    if (timeIssues > 0) msg += '  Warning: ' + timeIssues + ' row(s) had a TIME value that could not be parsed and were left unshifted.';
+    if (outEncoding === 'cp1250') msg += "  Note: browsers can't write Windows-1250 directly, so the file was saved as UTF-8 with BOM instead.";
+    setStatus(msg, timeIssues > 0 ? 'err' : 'ok');
+
+  } catch (err) {
+    setStatus('Something went wrong: ' + err.message, 'err');
+  }
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!resultBlob) return;
+  const url = URL.createObjectURL(resultBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = resultName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+function setStatus(msg, kind) {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (msg ? ' show' : '') + (kind ? ' ' + kind : '');
+}
+</script>
+</body>
+</html>
